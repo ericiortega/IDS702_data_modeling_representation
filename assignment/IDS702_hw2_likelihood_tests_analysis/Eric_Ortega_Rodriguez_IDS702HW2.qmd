@@ -1,0 +1,227 @@
+---
+title: "IDS 702 HW 2"
+author: "Eric Ortega Rodriguez"
+format: pdf
+---
+
+## Exercise 1
+
+![](images/clipboard-4029178329.png){fig-align="center" width="583"}
+
+![](images/clipboard-3879280479.png){fig-align="center" width="636"}
+
+![](images/clipboard-955949760.png){fig-align="center" width="644"}
+
+## Exercise 2
+
+You are required to show the code you use to complete each part of exercises 2-5. You must also write your narrative answers below the code.
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(openintro)
+data("births14")
+```
+
+a\. The total number of observations is 1000 and there is a total of 13 variables. The data set contain information about a individual's birth record from the United States. The observational unit is a single birth.
+
+```{r}
+dim(births14)
+```
+
+b\. The variable which contain missing values are fage (114 missing), visits(56 missing), gained(42 missing), and habit(19 missing).
+
+```{r}
+colSums(is.na(births14))
+```
+
+c\. The count of of low birth weight babies is 81 babies (indicating a 8.1%). As for not low birth rates, there are 919 babies(indicating a 91.9%).
+
+```{r}
+# retrieving the count of low birth rate and not low weight 
+table(births14$lowbirthweight)
+
+# in order to calculate %, we must mutiply by 100
+prop.table(table(births14$lowbirthweight)) * 100
+```
+
+## Exercise 3
+
+a\.
+
+**Null Hypothesis:** There would be no difference among the median birth weight of babies born to mothers who are smokers compared to those who are not.
+
+**Alternative Hypothesis:** There is a difference among the median birth weight of babies born to mothers who are smokers compared to those who are not.
+
+b\. In this case, the *observed difference* in the median birth weight between babies born to mothers who smoke and those who do not.
+
+```{r}
+births14 <- births14 %>% drop_na(habit)
+
+observed_statistic <- births14 |>
+  specify(response = weight, 
+    explanatory = habit) |> 
+  
+calculate(stat = "diff in medians", order = c("nonsmoker", "smoker"))
+
+observed_statistic
+```
+
+c\. The null hypothesis states that there is no difference in the median birth weight of babies born to mothers who smoke compared to those who do not smoke. After simulating the null distribution and performing the hypothesis test, we found that our p-value (0.02) is below the significance level of 0.05. Therefore, we reject the null hypothesis. This indicates that there is sufficient evidence to conclude that the median birth weight is significantly different when the mother smokes.
+
+```{r}
+
+set.seed(150) #random number
+# Simulating the null distribution
+null_dist <- births14 %>%
+  specify(formula = weight ~ habit) %>%
+  hypothesize(null = "independence") %>%
+  generate(reps = 1000, type = "permute") %>%
+  calculate(stat = "diff in medians", order = c("nonsmoker", "smoker"))
+
+# Getting out p-value
+p_value <- null_dist %>%
+  get_p_value(obs_stat = observed_statistic, direction = "both")
+
+p_value
+```
+
+d\. After calculating our bootstrap confidence interval, we see that zero lies within the interval. Given this and our p-value, we fail to reject the null hypothesis, which states that there is no difference in median birth weights between the two groups. The confidence interval indicates that there is insufficient evidence to prove that a mother's smoking status is associated with a difference in median birth weight.
+
+```{r}
+set.seed(150)
+  boot_dist <- births14 |>
+  specify(response = weight,explanatory = habit) |>
+  generate(reps = 1000, type = "bootstrap") |>
+  calculate(stat = "diff in medians",
+  order=c("nonsmoker", "smoker"))
+  
+get_confidence_interval(boot_dist, level=0.95,
+type="percentile")
+```
+
+e\. Plot illustrating the median birth weight when the mother smokes vs does not smoke can be seen below.
+
+```{r}
+median_birthweight <- births14 %>%
+  group_by(habit) %>%
+  summarize(median_weight = median(weight), .groups = 'drop')
+
+
+ggplot(median_birthweight, aes(x = habit, y = median_weight, fill = habit)) +
+  geom_bar(stat = "identity", position = "dodge") + geom_text(aes(label = round(median_weight, 2)), vjust = -0.5) + labs(title = "Median Birth Weight by Presence of Mother's Smoking Habit",
+    x = "Smoking Habit", y = "Median Birth Weight ")
+```
+
+## Exercise 4
+
+a.Table showing premature birth and low birth weight can be seen below
+
+```{r}
+maturity_table <- births14 %>%
+    select(premie, lowbirthweight) %>%
+    table()
+
+maturity_table
+
+```
+
+|                   | Low birth weight | Not low birth weight |
+|-------------------|------------------|----------------------|
+| **Not premature** | 27               | 833                  |
+| **Premature**     | 51               | 70                   |
+
+b\. The necessary conditions to conduct a Chi-square test of independence are the following:\
+1. ***Variables must be categorical*** - data must be in categories, not continuous.\
+2. ***Independence*** - each observation should be independent of others.\
+3. ***Expected Frequency*** - The expected frequency in each category should be at least five.\ This ensures the Chi-Square approximation to the distribution is valid.\
+
+Given these conditions, we can determine that the conditions are ***met*** and we can conduct the Chi-square test. Each row is independent from the others since it is a person's birth, data is categorical since it divided by categories, and expected frequencies are at least five.
+
+c.\
+**Null Hypothesis:** There is no relationship between premature birth and low birth weight (independent).
+
+**Alternative Hypothesis:** There is a relationship between premature birth and low birth weight (not independent).
+
+The calculation of the p-value using R can be seen below. The p-value is less than 2.2e-16. This small p-value indicates that we reject the null hypothesis.Thus, indicating that there is a statistically significant correlation between premature birth and low birth weight. More specifically, given the context of the problem the likelihood of a baby being born with low birth weight is correlated with whether the birth was premature.
+
+```{r}
+
+# Chi-square test
+chi_testing <- chisq.test(maturity_table)
+
+# Results
+chi_testing
+
+```
+
+d\. The plot highlighting the relationship between premature births and low birth rates can be seen below.
+
+```{r}
+ggplot(births14) +
+  aes(x = premie, fill = lowbirthweight) + geom_bar(position = "dodge")
+```
+
+## Exercise 5
+
+a\. Creating a new variable can be seen below:
+
+```{r}
+births14 <- births14 %>%
+  mutate(visits_category = case_when(
+    visits <= 10 ~ "10 or fewer",
+    visits >= 11 & visits <= 15 ~ "11-15",
+    visits > 15 ~ "more than 15",
+    TRUE ~ NA_character_
+  ))
+
+```
+
+b\. The mean by number of visits for the following:\
+***10 or fewer visits:*** 27.98\
+***11-15 visits:*** 28.49\
+***More than 15 visits:*** 28.83\
+
+```{r}
+mean_category <- births14 %>% group_by(visits_category) %>% summarize(mean_mother_age = mean(mage, na.rm = TRUE)) # ignoring missing values
+
+mean_category
+```
+
+c\. The appropriate test to assess this research question would be the Analysis of Variance (ANOVA) test. The conditions for a ANOVA test are fulfilled since both conditions are met. These conditions are that there is independence, normality, and homogeneity of variance, all of which are satisfied.
+
+**Null Hypothesis:** The mean mother's age is the identical across all three visit categories.
+
+**Alternative Hypothesis:** At least one of the three means is different than the rest.
+
+d\. Conduction of the ANOVA test can be seen below. Our P- value is approximately 0.347. Due to this, we cannot reject our null hypothesis. In the context of our data, this indicated that there is no statistically significant difference in the mean mother's age among our different prenatal visit categories (10 or fewer, 11 to 15, and more than 15.
+
+```{r}
+
+births14$visits_category <- factor(births14$visits_category, levels = c("10 or fewer", "11-15", "more than 15"))
+
+# Remove rows with missing data 
+births14_cleaned <- births14 %>%
+  filter(!is.na(visits_category), !is.na(mage))
+
+# ANOVA test
+anova_result <- aov(mage ~ visits_category, data = births14_cleaned)
+
+# summary
+summary(anova_result)
+
+
+```
+
+e\. A box plot highlighting showing relationship between hospital visits during pregnancy and mean mother’s age can be seen below.
+
+```{r}
+ggplot(births14, aes(x = visits_category, y = mage, fill = visits_category)) +
+  geom_boxplot(outlier.alpha = 0.1, outlier.size = 0.5) +
+  stat_summary(fun = mean, geom = "point", shape = 20, size = 3, color = "black", fill = "black") +
+  labs(
+    title = "Mother's Age and Number of Prenatal Visits",
+    x = "Prenatal Visit Categories",
+    y = "Mother's Age"
+  ) 
+```

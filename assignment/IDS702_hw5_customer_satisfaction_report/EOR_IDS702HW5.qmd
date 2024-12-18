@@ -1,0 +1,499 @@
+---
+title: "IDS 702 HW 5"
+author: "Eric Ortega Rodriguez"
+format: pdf
+header-includes:
+  - \usepackage{float}
+  - \floatplacement{table}{H}
+execute:
+  echo: false
+  message: false
+  error: true
+---
+
+\newpage
+
+## Part 1: Data Science Team Report
+
+```{r, echo=FALSE , include=FALSE}
+library(tidyverse)
+library(MASS)
+library(caret)
+library(nnet)
+## you may need to add the relevant packages here
+
+airline <- read.csv("https://raw.githubusercontent.com/anlane611/datasets/refs/heads/main/airline_survey.csv")
+```
+
+### Data Overview
+
+```{r, echo=FALSE , include=FALSE}
+# dataset dimensions
+dim(airline)
+
+str(airline)
+
+# Descriptive Statistics
+summary(select_if(airline, is.numeric))
+
+# Frequency counts 
+sapply(select_if(airline, is.character), table)
+
+# missing data check
+na_counter <- colSums(is.na(airline))
+na_counter
+
+```
+
+```{r, echo=FALSE , include=FALSE}
+library(dplyr)
+
+numeric_summary <- airline %>%
+  reframe(
+    Variable = c(
+      "Passenger Age", "Flight Distance (miles)", "Inflight Wifi Service Rating", 
+      "Ease of Online Booking Rating", "Gate Location Rating", 
+      "Food and Drink Rating", "Online Boarding Rating", "Seat Comfort Rating", 
+      "Inflight Entertainment Rating", "Onboard Service Rating", 
+      "Legroom Service Rating", "Baggage Handling Rating", 
+      "Check-in Service Rating", "Inflight Service Rating", "Cleanliness Rating",
+      "Departure Delay (minutes)", "Arrival Delay (minutes)"
+    ),
+    Mean = c(
+      mean(Age, na.rm = TRUE), mean(Flight.Distance, na.rm = TRUE), 
+      mean(Inflight.wifi.service, na.rm = TRUE), mean(Ease.of.Online.booking, na.rm = TRUE),
+      mean(Gate.location, na.rm = TRUE), mean(Food.and.drink, na.rm = TRUE),
+      mean(Online.boarding, na.rm = TRUE), mean(Seat.comfort, na.rm = TRUE),
+      mean(Inflight.entertainment, na.rm = TRUE), mean(On.board.service, na.rm = TRUE),
+      mean(Leg.room.service, na.rm = TRUE), mean(Baggage.handling, na.rm = TRUE),
+      mean(Checkin.service, na.rm = TRUE), mean(Inflight.service, na.rm = TRUE),
+      mean(Cleanliness, na.rm = TRUE), mean(Departure.Delay.in.Minutes, na.rm = TRUE),
+      mean(Arrival.Delay.in.Minutes, na.rm = TRUE)
+    ),
+    SD = c(
+      sd(Age, na.rm = TRUE), sd(Flight.Distance, na.rm = TRUE), 
+      sd(Inflight.wifi.service, na.rm = TRUE), sd(Ease.of.Online.booking, na.rm = TRUE),
+      sd(Gate.location, na.rm = TRUE), sd(Food.and.drink, na.rm = TRUE),
+      sd(Online.boarding, na.rm = TRUE), sd(Seat.comfort, na.rm = TRUE),
+      sd(Inflight.entertainment, na.rm = TRUE), sd(On.board.service, na.rm = TRUE),
+      sd(Leg.room.service, na.rm = TRUE), sd(Baggage.handling, na.rm = TRUE),
+      sd(Checkin.service, na.rm = TRUE), sd(Inflight.service, na.rm = TRUE),
+      sd(Cleanliness, na.rm = TRUE), sd(Departure.Delay.in.Minutes, na.rm = TRUE),
+      sd(Arrival.Delay.in.Minutes, na.rm = TRUE)
+    )
+  )
+
+numeric_summary
+
+
+
+```
+
+The dataset comprises 3,478 observations and 24 variables. It was collected through a customer satisfaction survey for an airline, with the primary goal of identifying key factors that influence customer satisfaction. Each row represents a unique passenger, and the columns include a variety of characteristics such as demographics, travel-related details, service satisfaction, and delay-related features. The dataset is complete, with no missing values, simplifying the data preparation process.
+
+The satisfaction levels among passengers are distributed as follows: - **Satisfied**: 44.8% (1,558 passengers) - **Neutral**: 26.8% (932 passengers) - **Dissatisfied**: 28.4% (988 passengers)
+
+Below is a detailed breakdown of the dataset's attributes:
+
+1.  **Demographics**:
+    -   **Gender**: Passenger’s gender (e.g., Male, Female).
+    -   **Customer.Type**: Indicates if the passenger is a Loyal or Disloyal Customer.
+    -   **Age**: Passenger’s age.
+2.  **Flight Characteristics**:
+    -   **Type.of.Travel**: Purpose of travel (Business or Personal).
+    -   **Class**: Flight class (e.g., Business, Economy, Economy Plus).
+    -   **Flight.Distance**: Total flight distance in miles.
+3.  **Service Ratings** (scale: 1–5, where 5 indicates the highest satisfaction):
+    -   Includes `Inflight.wifi.service`, `Ease.of.Online.booking`, `Food.and.drink`, `Seat.comfort`, `Inflight.entertainment`, `On.board.service`, `Leg.room.service`, `Baggage.handling`, `Checkin.service`, `Inflight.service`, and `Cleanliness`.
+4.  **Delays**:
+    -   **Departure.Delay.in.Minutes**: Duration of delay at departure.
+    -   **Arrival.Delay.in.Minutes**: Duration of delay at arrival.
+
+This dataset provides a robust foundation for analyzing factors that drive customer satisfaction and identifying opportunities for improvement in the airline’s operations.
+
+The table below summarizes the descriptive statistics for the numeric variables in the dataset, including the mean and standard deviation.
+
+
+```{r, echo=FALSE , include=TRUE}
+# Updated summary table
+library(dplyr)
+library(knitr)
+
+numeric_summary <- airline %>%
+  reframe(
+    Variable = c(
+      "Passenger Age", "Flight Distance (miles)", "Inflight Wifi Service Rating", 
+      "Ease of Online Booking Rating", "Gate Location Rating", 
+      "Food and Drink Rating", "Online Boarding Rating", "Seat Comfort Rating", 
+      "Inflight Entertainment Rating", "Onboard Service Rating", 
+      "Legroom Service Rating", "Baggage Handling Rating", 
+      "Check-in Service Rating", "Inflight Service Rating", "Cleanliness Rating",
+      "Departure Delay (minutes)", "Arrival Delay (minutes)"
+    ),
+    Mean = c(
+      mean(Age, na.rm = TRUE), mean(Flight.Distance, na.rm = TRUE), 
+      mean(Inflight.wifi.service, na.rm = TRUE), mean(Ease.of.Online.booking, na.rm = TRUE),
+      mean(Gate.location, na.rm = TRUE), mean(Food.and.drink, na.rm = TRUE),
+      mean(Online.boarding, na.rm = TRUE), mean(Seat.comfort, na.rm = TRUE),
+      mean(Inflight.entertainment, na.rm = TRUE), mean(On.board.service, na.rm = TRUE),
+      mean(Leg.room.service, na.rm = TRUE), mean(Baggage.handling, na.rm = TRUE),
+      mean(Checkin.service, na.rm = TRUE), mean(Inflight.service, na.rm = TRUE),
+      mean(Cleanliness, na.rm = TRUE), mean(Departure.Delay.in.Minutes, na.rm = TRUE),
+      mean(Arrival.Delay.in.Minutes, na.rm = TRUE)
+    ),
+    SD = c(
+      sd(Age, na.rm = TRUE), sd(Flight.Distance, na.rm = TRUE), 
+      sd(Inflight.wifi.service, na.rm = TRUE), sd(Ease.of.Online.booking, na.rm = TRUE),
+      sd(Gate.location, na.rm = TRUE), sd(Food.and.drink, na.rm = TRUE),
+      sd(Online.boarding, na.rm = TRUE), sd(Seat.comfort, na.rm = TRUE),
+      sd(Inflight.entertainment, na.rm = TRUE), sd(On.board.service, na.rm = TRUE),
+      sd(Leg.room.service, na.rm = TRUE), sd(Baggage.handling, na.rm = TRUE),
+      sd(Checkin.service, na.rm = TRUE), sd(Inflight.service, na.rm = TRUE),
+      sd(Cleanliness, na.rm = TRUE), sd(Departure.Delay.in.Minutes, na.rm = TRUE),
+      sd(Arrival.Delay.in.Minutes, na.rm = TRUE)
+    )
+  )
+
+# Rendering table
+kable(
+  numeric_summary,
+  caption = "Descriptive Statistics of Numeric Variables",
+  col.names = c("Variable", "Mean", "Standard Deviation"),
+  format = "html",
+  align = "lcc"
+)
+```
+
+### Analysis Plan
+
+Our analysis aims to identify the key factors influencing customer satisfaction and provide actionable insights for LaneAir. To achieve this, two models will be implemented to address the ordinal nature of the target variable (`Satisfaction`) and ensure robustness in the findings.
+
+### Type of Models
+
+The following models will be used for the analysis: 1. **Ordinal Logistic Regression**: - This is the primary model as it will look at ordinal target variables (`Satisfaction`) with three levels: `Dissatisfied`, `Neutral`, and `Satisfied`. This model assumes that the relationship between each predictor and the outcome is consistent across all thresholds of satisfaction. 2. **Multinomial Logistic Regression**: - This model is used to compare with the ordinal logistic regression and validate its assumptions. Unlike the ordinal model, it treats `Satisfaction` as a nominal variable, allowing for more flexibility in capturing relationships between predictors and satisfaction levels.
+
+### Link Function
+
+1.  **Ordinal Logistic Regression**:
+    -   The **link function** will be used. It models the cumulative probabilities of satisfaction levels and assumes proportional odds among variables. 
+2.  **Multinomial Logistic Regression**:
+    -   The **link function** will also be used for this model. However, it does not assume proportional odds and instead models each satisfaction level independently. Essentially, it will be its own category. 
+
+### Predictors
+
+The predictors used in this analysis are grouped into four general categories: 1. **Demographics**: - Variables: `Age`, `Gender`, `Customer.Type`. 
+
+2.  **Travel Characteristics**:
+    -   Variables: `Type.of.Travel`, `Class`, `Flight.Distance`.
+    -   Capture trip and the service class that are  linked to passenger expectations and satisfaction.
+3.  **Service Ratings**:
+    -   Variables: Ratings for `Inflight.wifi.service`, `Ease.of.Online.booking`, `Seat.comfort`, `Food.and.drink`, `Online.boarding`, `Inflight.entertainment`, `Cleanliness`, `On.board.service`, `Leg.room.service`, `Baggage.handling`, `Checkin.service`, and `Inflight.service`.
+    -   Capture passenger feedback on various aspects of inflight and airport services.
+4.  **Operational Factors**:
+    -   Variables: `Departure.Delay.in.Minutes`, `Arrival.Delay.in.Minutes`, `Departure.Arrival.time.convenient`.
+    -   Capture the  performance of the airline which significantly impact satisfaction. 
+
+### Model Evaluation Plan
+
+Model performance will compare the Ordinal Logistic Regression (OLR) and Multinomial Logistic Regression (MLR) models in determining customer satisfaction. Evaluation metrics will include overall accuracy, assessed against the No Information Rate, and the kappa statistic. A confusion matrix will be used to identify issues and differences among the models.  The OLR model will be examined for its interpretability, while the MLR model will be evaluated for its flexibility in handling non-ordinal relationships. Finally, the Akaike Information Criterion (AIC) will compare model fit. 
+
+### Model Results
+
+```{r, echo=FALSE , include=FALSE}
+# for oridinal, first step would be convert to factors 
+airline <- airline %>%
+  mutate(
+    Satisfaction = factor(Satisfaction, levels = c("dissatisfied", "neutral", "satisfied"), ordered = TRUE),
+    Gender = factor(Gender),
+    Customer.Type = factor(Customer.Type),
+    Type.of.Travel = factor(Type.of.Travel),
+    Class = factor(Class)
+  )
+
+#airline
+```
+
+```{r, echo=FALSE , include=FALSE}
+ 
+library(MASS)
+
+# fitting the ordinal model 
+olr_model <- polr(
+  Satisfaction ~ Gender + Age + Type.of.Travel + Class + Flight.Distance + 
+    Inflight.wifi.service + Departure.Arrival.time.convenient + Customer.Type +
+    Ease.of.Online.booking + Gate.location + Food.and.drink + 
+    Online.boarding + Seat.comfort + Inflight.entertainment + 
+    On.board.service + Leg.room.service + Baggage.handling + 
+    Checkin.service + Inflight.service + Cleanliness + 
+    Departure.Delay.in.Minutes + Arrival.Delay.in.Minutes, 
+  data = airline, 
+  Hess = TRUE
+)
+
+# Displaying the model summary
+summary(olr_model)
+
+
+```
+
+```{r, echo=FALSE , include=FALSE}
+ 
+odds_ratios <- exp(coef(olr_model))
+
+odds_ratios
+
+```
+
+```{r, echo=FALSE , include=FALSE}
+odds_ratios <- exp(coef(olr_model))
+
+ci <- exp(confint(olr_model))
+ci <- ci[!grepl("\\|", rownames(ci)), ]
+
+summary_olr <- summary(olr_model)
+t_values <- summary_olr$coefficients[, "t value"]
+t_values <- t_values[!grepl("\\|", names(t_values))]
+p_values <- 2 * pnorm(-abs(t_values))
+
+results <- data.frame(
+  Predictor = names(odds_ratios),
+  `Odds Ratio` = odds_ratios,
+  `Lower CI` = ci[, 1],
+  `Upper CI` = ci[, 2],
+  `T-Value` = t_values,
+  `P-Value` = p_values
+)
+
+print(results)
+
+```
+
+```{r, echo=FALSE , include=TRUE}
+
+library(knitr)
+
+# Data for the table
+ordinal_results <- data.frame(
+  Predictor = c(
+    "Gender (Male)", "Age", "Type of Travel (Personal)", "Class (Economy)", 
+    "Class (Economy Plus)", "Flight Distance", "Inflight Wifi Service", 
+    "Departure / Arrival Time Convenience", "Customer Type (Loyal Customer)", 
+    "Ease of Online Booking", "Gate Location", "Food and Drink", "Online Boarding", 
+    "Seat Comfort", "Inflight Entertainment", "Onboard Service", "Legroom Service", 
+    "Baggage Handling", "Check-in Service", "Inflight Service", "Cleanliness", 
+    "Departure Delay in Minutes", "Arrival Delay in Minutes"
+  ),
+  `Odds Ratio` = c(
+    0.994, 0.995, 0.137, 0.703, 0.533, 1.000, 1.370, 0.956, 5.242, 
+    0.747, 0.992, 0.978, 1.512, 1.057, 1.056, 1.165, 1.179, 1.079, 
+    1.209, 1.133, 1.118, 1.005, 0.993
+  ),
+  `Lower CI` = c(
+    0.859, 0.990, 0.110, 0.575, 0.396, 0.999, 1.251, 0.903, 4.169, 
+    0.684, 0.927, 0.898, 1.401, 0.973, 0.950, 1.085, 1.111, 0.992, 
+    1.136, 1.042, 1.015, 0.998, 0.986
+  ),
+  `Upper CI` = c(
+    1.151, 1.000, 0.170, 0.859, 0.717, 1.001, 1.501, 1.013, 6.602, 
+    0.816, 1.061, 1.062, 1.633, 1.143, 1.174, 1.246, 1.247, 1.173, 
+    1.283, 1.223, 1.230, 1.012, 1.000
+  ),
+  `P-Value` = c(
+    0.938, 0.034, "<0.001", "<0.001", "<0.001", 0.742, "<0.001", 
+    0.127, "<0.001", "<0.001", 0.802, 0.589, "<0.001", 0.191, 0.300, 
+    "<0.001", "<0.001", 0.069, "<0.001", 0.003, 0.022, 0.199, 0.042
+  )
+)
+
+# special formatting to use when rendering  the table using knitr::kable
+kable(
+  ordinal_results, 
+  caption = "Ordinal Logistic Regression Results", 
+  col.names = c("Predictor", "Odds Ratio", "Lower CI", "Upper CI", "P-Value"), 
+  format = "html",
+  align = "c"
+)
+
+
+```
+Based on the chart above we can see that  customer loyalty, travel type, class, and certain service-related factors. Such facors include wifi and online booking, are the most compelling drivers of customer satisfaction. I would advise the airline to targeting these areas as they are most likely to improve overal customer satisfaction. 
+
+## Model Comparison
+
+We will now compare the Ordinal Logistic Regression (OLR) model to the Multinomial Logistic Regression (MLR) model to determine which approach is more effective in identifying the factors contributing to customer satisfaction.
+
+```{r, echo=FALSE , include=FALSE}
+# Fit the OLR model
+olr_model <- polr(Satisfaction ~ Gender + Age + Type.of.Travel + Class + Flight.Distance +
+                    Inflight.wifi.service + Departure.Arrival.time.convenient + Customer.Type +
+                    Ease.of.Online.booking + Gate.location + Food.and.drink + 
+                    Online.boarding + Seat.comfort + Inflight.entertainment + 
+                    On.board.service + Leg.room.service + Baggage.handling + 
+                    Checkin.service + Inflight.service + Cleanliness + 
+                    Departure.Delay.in.Minutes + Arrival.Delay.in.Minutes, 
+                  data = airline, Hess = TRUE)
+
+# Fit the MLR model
+mlr_model <- multinom(Satisfaction ~ Gender + Age + Type.of.Travel + Class + Flight.Distance +
+                        Inflight.wifi.service + Departure.Arrival.time.convenient + Customer.Type +
+                        Ease.of.Online.booking + Gate.location + Food.and.drink + 
+                        Online.boarding + Seat.comfort + Inflight.entertainment + 
+                        On.board.service + Leg.room.service + Baggage.handling + 
+                        Checkin.service + Inflight.service + Cleanliness + 
+                        Departure.Delay.in.Minutes + Arrival.Delay.in.Minutes, 
+                      data = airline)
+
+olr_aic <- AIC(olr_model)
+mlr_aic <- AIC(mlr_model)
+
+
+
+olr_pred <- predict(olr_model, type = "class")
+olr_cm <- confusionMatrix(as.factor(olr_pred), airline$Satisfaction)
+
+# MLR predictions with the confusion matrix
+mlr_pred <- predict(mlr_model, type = "class")
+mlr_cm <- confusionMatrix(as.factor(mlr_pred), airline$Satisfaction)
+
+# print out confusion 
+cat("confusion Matrix for Ordinal Logistic Regression (OLR):\n")
+print(olr_cm$table)
+
+cat("\nconfusion Matrix for Multinomial Logistic Regression (MLR):\n")
+print(mlr_cm$table)
+
+# summary 
+comparison_results <- data.frame(
+  Model = c("OLR", "MLR"),
+  AIC = c(olr_aic, mlr_aic),
+  Accuracy = c(olr_cm$overall["Accuracy"], mlr_cm$overall["Accuracy"]),
+  Kappa = c(olr_cm$overall["Kappa"], mlr_cm$overall["Kappa"])
+)
+
+cat("\nsummary of Model Performance:\n")
+print(comparison_results)
+
+```
+
+The following tables compare the **Ordinal Logistic Regression (OLR)** and **Multinomial Logistic Regression (MLR)** models:
+
+
+### Confusion Matrix for Ordinal Logistic Regression (OLR)
+
+| Prediction   | Dissatisfied | Neutral | Satisfied |
+|--------------|--------------|---------|-----------|
+| Dissatisfied | 502          | 511     | 76        |
+| Neutral      | 300          | 277     | 114       |
+| Satisfied    | 186          | 144     | 1368      |
+
+### Confusion Matrix for Multinomial Logistic Regression (MLR)
+
+| Prediction   | Dissatisfied | Neutral | Satisfied |
+|--------------|--------------|---------|-----------|
+| Dissatisfied | 464          | 423     | 116       |
+| Neutral      | 341          | 368     | 61        |
+| Satisfied    | 183          | 141     | 1381      |
+
+
+### Model Comparison Summary
+
+| Model | AIC      | Accuracy | Kappa  |
+|-------|----------|----------|--------|
+| OLR   | 5516.347 | 0.6173   | 0.4012 |
+| MLR   | 5006.669 | 0.6363   | 0.4309 |
+
+
+
+Based on the results above , the Multinomial Logistic Regression model shows a better fit with a lower AIC value (5006.67) compared to the Ordinal Logistic Regression model (5516.35). Additionally, the Multinomial Logistic Regression model has a higher accuracy (63.63%) and  kappa (0.43), indicating better performance in predicting customer satisfaction. 
+
+On the other hand, the Ordinal Logistic Regression model would also be a good option due to its simpler structure. In conclusion, the MLR model is effective in capturing nuances within the data. 
+
+\newpage
+
+## Part 2: Executive Summary
+
+### Introduction
+The LaneAir customer satisfaction dataset comprises 3,478 survey responses with 24 variables. 
+
+
+The varaibles range from demographics (gender, age, customer type), travel characteristics (such as travel purpose, flight class, flight distance), service ratings (such as inflight WiFi, food and drink, seat comfort), and to operational factors (such as delays). 
+
+The primary goal of this analysis is to identify key factors influencing customer satisfaction to recommend actionable improvements. 
+
+### Methods
+
+To analyze customer satisfaction, two models were implemented:
+1. **Ordinal Logistic Regression (OLR):** This model assumes an ordinal relationship between predictors and satisfaction levels (dissatisfied, neutral, satisfied).
+2. **Multinomial Logistic Regression (MLR):** A  model that treats satisfaction levels as independent categories providing detailed insights.
+
+### Results
+
+- **Customer Loyalty and Travel Type:** Loyal customers and business travelers show significantly higher satisfaction odds. 
+- **Service Quality:** High satisfaction levels correlate strongly with WiFi service, online boarding, and inflight service.
+- **Operational Factors:** Delays impact satisfaction minimally, likely due to customer expectations.
+
+Model comparison revealed the **MLR model** performed better, with higher accuracy (63.63%) and a lower AIC (5006.67) than the OLR model.
+
+```{r, echo=FALSE , include=TRUE}
+# regression results 
+predictor_data <- data.frame(
+  Predictor = c(
+    "Gender (Male)", "Age", "Type of Travel (Personal)", "Class (Economy)", 
+    "Class (Economy Plus)", "Flight Distance", "Inflight Wifi Service", 
+    "Departure / Arrival Time Convenience", "Customer Type (Loyal Customer)", 
+    "Ease of Online Booking", "Gate Location", "Food and Drink", "Online Boarding", 
+    "Seat Comfort", "Inflight Entertainment", "Onboard Service", "Legroom Service", 
+    "Baggage Handling", "Check-in Service", "Inflight Service", "Cleanliness", 
+    "Departure Delay in Minutes", "Arrival Delay in Minutes"
+  ),
+  Odds_Ratio = c(
+    0.994, 0.995, 0.137, 0.703, 0.533, 1.000, 1.370, 0.956, 5.242, 
+    0.747, 0.992, 0.978, 1.512, 1.057, 1.056, 1.165, 1.179, 1.079, 
+    1.209, 1.133, 1.118, 1.005, 0.993
+  ),
+  Lower_CI = c(
+    0.859, 0.990, 0.110, 0.575, 0.396, 0.999, 1.251, 0.903, 4.169, 
+    0.684, 0.927, 0.898, 1.401, 0.973, 0.950, 1.085, 1.111, 0.992, 
+    1.136, 1.042, 1.015, 0.998, 0.986
+  ),
+  Upper_CI = c(
+    1.151, 1.000, 0.170, 0.859, 0.717, 1.001, 1.501, 1.013, 6.602, 
+    0.816, 1.061, 1.062, 1.633, 1.143, 1.174, 1.246, 1.247, 1.173, 
+    1.283, 1.223, 1.230, 1.012, 1.000
+  )
+)
+
+# visual
+ggplot(predictor_data, aes(x = Predictor, y = Odds_Ratio)) +
+  geom_bar(stat = "identity", fill = "#32CD32") +
+  geom_errorbar(aes(ymin = Lower_CI, ymax = Upper_CI), width = 0.3, color = "#006400") +
+  labs(
+    title = "Predictors of Customer Satisfaction",
+    subtitle = "Odds Ratios with Upper CI",
+    x = "Variable",
+    y = "Odds Ratio"
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    axis.text.x = element_text(size = 8, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 9),
+    axis.title = element_text(size = 10)
+  )
+
+
+```
+
+
+### Conclusion
+
+To enhance customer satisfaction effectively and cost-efficiently:
+1. Invest in **Technology that will improve wifi and entertainment service** for immediate impact. This is an option that is more plausible for Laneair. 
+
+2. Improve **customer loyalty programs and marketing**, as through our results, we found that loyal customers are are up to five times  more likely to be satisfied with their flight.
+3. Ulitize **online booking, boarding processes, technologies that will improve booking speeds** which will improve convienience for the costomer and overall satisfaction. 
+
+**Limitations:** The survey responses may have non-response bias, with disloyal customers less likely to participate. Also the satisfaction drivers vary across customer demographics.
+
+If Laneair focuses on service improvements and leveraging customer insights, it can improve overall customer satisfaction. This is also more align with cost management since they are more plausible. 

@@ -1,0 +1,616 @@
+---
+title: "UFC Analysis - IDS 702 Final Project"
+author: "Arko Bhattacharya, Eric Ortega Rodriguez, Mu Niu, Nruta Choudhari"
+date: 2024-12-15
+format: pdf
+editor: visual
+---
+
+## Abstract
+
+Understanding the impact of physical attributes, such as reach, and tactical strategies, such as submission attempts, is critical for improving performance and outcomes in mixed martial arts (MMA). This study examined the relationship between fighter reach and the total number of strikes landed during a fight. Additionally, it investigated the role of submission attempts in predicting fight outcomes, using a dataset of fights from the Ultimate Fighting Championship (UFC), the leading global MMA promotion. The dataset included UFC fights from March 2010 to the most recent event in 2024.
+
+Linear regression with log-transformed variables revealed significant interactions between reach and weight classes, such as Flyweight and Featherweight, highlighting that reach impacts striking performance differently across divisions. Main effects were also observed for weight classes like Flyweight and Women’s Strawweight. Logistic regression revealed that submission attempts significantly influenced fight outcomes, with attempts from the red corner positively impacting red's odds of winning, while attempts from the blue corner negatively affected red's chances of winning. Both predictors had p-values below 0.05. Model diagnostics, including residual analysis and multicollinearity checks, confirmed the validity of the findings.
+
+These results underscore the tactical importance of physical attributes and strategic maneuvers in UFC fights, providing insights to optimize training and fight preparation. Future research could explore additional predictors, such as fighter skill level and strategy, or advanced modeling techniques to deepen understanding of combat sports performance.
+
+## Introduction
+
+The Ultimate Fighting Championship (UFC) is the world's leading mixed martial arts (MMA) promotion, known for bringing together elite fighters from diverse combat sports backgrounds. Founded in 1993, the UFC has grown into a global phenomenon, hosting events worldwide that showcase athletes competing in disciplines such as boxing, wrestling, Muay Thai, Brazilian Jiujitsu, and judo. UFC fights take place in a distinct eight-sided cage, known as the Octagon, where fighters test their skills in striking, grappling, and overall strategy under a unified set of rules. The sport has evolved significantly over the years, introducing standardized weight classes, safety regulations, and scoring systems to ensure competitive fairness and fighter safety.
+
+This project examines UFC performances using data on UFC fights from 2010 to the present (last updated in November, 2024). The data, sourced from Kaggle, includes key fighter metrics, fight outcomes, betting odds, and performance indicators such as strikes landed and submission attempts. By leveraging this dataset, we aim to analyze factors influencing fight outcomes and performances.
+
+Our research questions are:
+
+1.  How does the reach of the fighter relate to the total number of strikes landed during a fight?
+2.  Is the fight outcome associated with the number of submission attempts made by a fighter?
+
+These questions are worth exploring because they provide a deeper understanding of UFC performance dynamics. For instance, examining the relationship between a fighter's reach and the total number of strikes landed can underscore the tactical performance of physical attributes in effective striking. Similarly, analyzing the association between fight outcomes and submission attempts can shed light on the strategic role of grappling in securing victories.
+
+The findings from this analysis offer valuable insights for fighters, coaches, and analysts, helping optimize training strategies, improve fight preparation, and enhance understanding of opponents' strengths and weaknesses.
+
+## Methods
+
+#### Data and Preprocessing
+
+The dataset was obtained from Kaggle, a widely recognized platform for sharing datasets and data science resources. Each row of the dataset refers to an individual bout, which refers to an individual match between two fighters. This includes data on fighter attributes such as height, weight, reach, stance, and age, as well as fight statistics like strikes landed, significant strikes, takedowns, submission attempts, and knockdowns. Additionally, it documents fight outcomes, including the winner, method of victory (e.g., knockout, submission, decision), the round in which the fight ended, and the total duration of the fight.
+
+The dataset contains 6,478 rows across 118 columns, with several variables containing missing values. During preprocessing, columns with over 6,000 missing values were dropped due to their lack of significance and the infeasibility of imputation. Other columns had a smaller proportion of missing values, and rows with missing values in key variables (e.g., strikes landed, reach, and weight class) were removed. This resulted in a final dataset with 4,895 rows. Most of the missing values were concentrated in performance metrics, such as submission attempts or specific strike statistics.
+
+In UFC, fighters are assigned to either the red corner or the blue corner, which indicates their position in the Octagon and helps differentiate between competitors. For the first research question, the dataset was filtered to include the variables related to reach, weight class, height, strikes landed and current win streak, ensuring that key confounding variables were included. The data for fighters in the red and blue corners were combined into a single dataframe to facilitate analysis.
+
+For the second research question, a new binary variable, Outcome was created to indicate the winner. A value of 1 was assigned if the fighter in the red corner won, and a value of 0 if the fighter in the blue corner won. The model included variables such as submission attempts, significant strikes landed, fight duration, and weight class to account for both physical attributes and performance metrics. These variables ensured a more comprehensive analysis of the factors influencing fight outcomes while addressing potential confounders.
+
+#### Model Fitting and Evaluation
+
+To examine the relationship between a fighter’s reach and the total number of strikes landed during a fight, a Multiple Linear Regression (MLR) model was utilized. The model included key predictors such as logarithmic transformation of reach, logarithmic transformation of height, win streak and weight class, with an interaction term between the win streak and weight class to explore potential moderating effects. Outliers and influential points were identified using Cook's distance, and these were removed to improve model robustness. Diagnostics, including residuals vs. fitted plots, were performed to assess linearity and homoscedasticity, while Variance Inflation Factor (VIF) was used to evaluate multicollinearity. Model performance was measured using the R-squared value.
+
+For the second research question, a logistic regression model was employed to predict fight outcomes (binary: win or loss) using submission attempts, reach, significance strikes, fight duration, and weight class as predictors. The model was refined using stepwise selection to identify the most significant predictors, and diagnostics such as Cook's distance, leverage, and deviance residuals were used to detect and remove influential points. The final logistic regression model included key predictors such as logarithmic transformations of submission attempts, logarithmic transformation of reach, logarithmic transformation of significant strikes landed, and logarithmic transformation of fight duration. Model performance was evaluated using the area under the receiver operating characteristic curve (ROC curve), and diagnostic plots were generated to assess the model's fit.
+
+All the analyses were conducted in R.
+
+## Results
+
+```{r, include = FALSE}
+# loading all the libraries
+library(dplyr)
+library(car)          # For VIF
+library(ggplot2)      # For residual plots
+library(broom)
+library(knitr)
+library(tableone)
+library(kableExtra)  # For pretty tables
+```
+
+```{r, include = FALSE}
+# reading the data
+ufc <- read.csv("ufc-master.csv")
+dim(ufc)
+```
+
+```{r, include = FALSE}
+# DATA CLEANING CELL
+# removing the data which has way too many missing values
+
+ufc = subset(ufc, select = -c(BMatchWCRank, RMatchWCRank, RWFlyweightRank, 
+                              RWFeatherweightRank, RWStrawweightRank, RWBantamweightRank, 
+                              RHeavyweightRank, RLightHeavyweightRank, RMiddleweightRank, 
+                              RWelterweightRank, RLightweightRank, RFeatherweightRank, 
+                              RBantamweightRank, RFlyweightRank, RPFPRank, BWFlyweightRank, 
+                              BWFeatherweightRank, BWStrawweightRank, BWBantamweightRank, 
+                              BHeavyweightRank, BLightHeavyweightRank, BMiddleweightRank, 
+                              BWelterweightRank, BLightweightRank, BFeatherweightRank, 
+                              BBantamweightRank, BFlyweightRank, BPFPRank))
+
+# removing all missing value rows from the columns of interest
+ufc_clean <- ufc %>%
+  filter(
+    !is.na(RedAvgSubAtt),
+    !is.na(BlueAvgSubAtt),
+    !is.na(BlueReachCms), 
+    !is.na(RedReachCms), 
+    !is.na(BlueAvgSigStrLanded), 
+    !is.na(RedAvgSigStrLanded),
+    !is.na(TotalFightTimeSecs),
+    !is.na(WeightClass)
+  )
+nrow(ufc_clean)
+```
+
+#### Research Question 1: How does the reach of the fighter relate to the total number of strikes landed during a fight?
+
+To explore the relationship between a fighter's reach and the number of strikes landed, we began by computing summary statistics for key variables: Reach, Weight Class, Height, Win Streak, and Average Significant Strikes Landed. Continuous variables are reported as means with standard deviations, while categorical variables are summarized by counts and percentages. These statistics provide as foundation for understanding the data before modelling.
+
+```{r, include = FALSE}
+filtered_ufc_blue <- ufc_clean[c("BlueReachCms","BlueAvgSigStrLanded","WeightClass", "BlueHeightCms", "BlueCurrentWinStreak")]
+colnames(filtered_ufc_blue) <- c("ReachCms", "AvgSigStrLanded", "WeightClass", "Height", "WinStreak")
+filtered_ufc_red <- ufc_clean[c("RedReachCms","RedAvgSigStrLanded","WeightClass", "RedHeightCms", "RedCurrentWinStreak")]
+colnames(filtered_ufc_red) <- c("ReachCms", "AvgSigStrLanded", "WeightClass", "Height", "WinStreak")
+
+# appending the two data sets
+ufc_q1 <- rbind(filtered_ufc_blue, filtered_ufc_red)
+
+# exclude outlier(one observation with 0 cm reach)
+ufc_q1 <- ufc_q1[ufc_q1$ReachCms > 0,]
+ufc_q1 <- ufc_q1[ufc_q1$AvgSigStrLanded > 0, ]
+```
+
+```{r, echo = FALSE}
+# Summarize the data
+summary_table <- ufc_q1 %>%
+  group_by(WeightClass) %>%
+  summarize(
+    N = n(),
+    Avg_Reach = paste0(round(mean(ReachCms, na.rm = TRUE), 1), " ± ", round(sd(ReachCms, na.rm = TRUE), 1)),
+    Avg_Height = paste0(round(mean(Height, na.rm = TRUE), 1), " ± ", round(sd(Height, na.rm = TRUE), 1)),
+    Avg_Strikes = paste0(round(mean(AvgSigStrLanded, na.rm = TRUE), 1), " ± ", round(sd(AvgSigStrLanded, na.rm = TRUE), 1)),
+    Median_Streak = paste0(median(WinStreak, na.rm = TRUE), " [", quantile(WinStreak, 0.25, na.rm = TRUE), "-", quantile(WinStreak, 0.75, na.rm = TRUE), "]")
+  )
+
+# Render the table
+kable(summary_table, caption = "Summary Statistics by Weight Class", align = "c")
+```
+
+```{r, include = FALSE}
+model_q1 <- lm(AvgSigStrLanded ~ ReachCms + WeightClass*WinStreak + Height, 
+               data = ufc_q1)
+
+cooks_d <- cooks.distance(model_q1)
+influential <- which(cooks_d > (4 / nrow(ufc_q1)))
+ufc_q1_clean <- ufc_q1[-influential, ]
+
+model_q1_clean <- lm(AvgSigStrLanded ~ log(ReachCms) + WinStreak * WeightClass + log(Height), data = ufc_q1_clean)
+summary(model_q1_clean)
+
+r_squared <- summary(model_q1_clean)$r.squared
+cat("R-squared:", r_squared, "\n")
+```
+
+```{r, echo = FALSE}
+# Extract coefficients from the model and their p-values
+coef_data <- as.data.frame(summary(model_q1_clean)$coefficients)
+coef_data$Variable <- rownames(coef_data)
+
+# Rename variables for clarity (same as before)
+coef_data$Variable[coef_data$Variable == "log(ReachCms)"] <- "Reach (log-transformed)"
+coef_data$Variable[coef_data$Variable == "WinStreak"] <- "Win Streak"
+coef_data$Variable[coef_data$Variable == "WeightClassCatch Weight"] <- "Catch Weight"
+coef_data$Variable[coef_data$Variable == "WeightClassFeatherweight"] <- "Featherweight"
+coef_data$Variable[coef_data$Variable == "WeightClassFlyweight"] <- "Flyweight"
+coef_data$Variable[coef_data$Variable == "WeightClassHeavyweight"] <- "Heavyweight"
+coef_data$Variable[coef_data$Variable == "WeightClassLight Heavyweight"] <- "Light Heavyweight"
+coef_data$Variable[coef_data$Variable == "WeightClassLightweight"] <- "Lightweight"
+coef_data$Variable[coef_data$Variable == "WeightClassMiddleweight"] <- "Middleweight"
+coef_data$Variable[coef_data$Variable == "WeightClassWelterweight"] <- "Welterweight"
+coef_data$Variable[coef_data$Variable == "WeightClassWomen's Bantamweight"] <- "Women's Bantamweight"
+coef_data$Variable[coef_data$Variable == "WeightClassWomen's Featherweight"] <- "Women's Featherweight"
+coef_data$Variable[coef_data$Variable == "WeightClassWomen's Flyweight"] <- "Women's Flyweight"
+coef_data$Variable[coef_data$Variable == "WeightClassWomen's Strawweight"] <- "Women's Strawweight"
+coef_data$Variable[coef_data$Variable == "log(Height)"] <- "Height (log-transformed)"
+coef_data$Variable[coef_data$Variable == "WinStreak:WeightClassWomen's Strawweight"] <- "Win Streak * Women's Strawweight"
+
+# Filter for only significant variables (p-value < 0.05)
+significant_coef_data <- coef_data[coef_data$`Pr(>|t|)` < 0.05, ]
+
+# Remove the intercept term for clarity
+significant_coef_data <- significant_coef_data[-1, ]
+
+# Bar plot of significant coefficients
+ggplot(significant_coef_data, aes(x = reorder(Variable, -Estimate), y = Estimate)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  coord_flip() +
+  labs(title = "Impact of Significant Variables on Strikes Landed",
+       x = "Variables",
+       y = "Coefficient Value") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 8), axis.text.y = element_text(size = 8), plot.title = element_text(size =10, face = "bold"), axis.title.x = element_text(size = 9), axis.title.y = element_text(size = 9))
+```
+
+A multiple linear regression (MLR) model was applied to examine the relationship between the average significant strikes landed and key predictors, including log-transformed Reach, log-transformed Height, Win Streak, and the interaction between Win Streak and Weight Class. The log transformations for Reach and Height were performed to address non-linearity and non-constant variance, which were highlighted in diagnostic plots (see Appendix 1).
+
+The adjusted $R^2$ value for the model was 0.068, suggesting that the predictors explain approximately 6.8% of the variability in average significant strikes landed.
+
+The analysis revealed several significant relationships between the fighters' physical attributes and the number of significant strikes landed. Notably, log-transformed Reach had a significant negative effect on the number of strikes landed ($\beta = -52.68, p < 0.001$), suggesting that reach increases, the average number of strikes landed decreases. The Weight Class variable also showed significant effects across divisions. Fighters in the Featherweight class landed more strikes landed ($\beta = 3.15, p = 0.001$), while Flyweight fighters landed fewer strikes ($\beta = -5.12, p < 001$). On the other hand, Women's Flyweight fighters had a significant negative relationship with strikes landed ($\beta = -14.95, p < 0.001$). In terms of interaction effects, the model included interaction terms between Win Streak and Weight Class, but most of these were not significant. However, there was a marginally significant positive interaction observed for Women's Strawweight ($\beta = 3.88, p = 0.0008$), suggesting that an increasing win streak slightly positively impacts the number of strikes landed in this weight class. Finally, the logarithm of the height variable showed a weak, marginally significant negative relationship with strikes landed ($\beta = -15.59, p = 0.087$), suggesting that taller fighters might land fewer strikes on average, although the effect is not strong. These findings underscore the complex interplay between a fighter's physical characteristics, weight class, and performance outcomes, with reach and weight class being the most influential factors in predicting the number of strikes landed.
+
+```{r, echo = FALSE}
+# Extract residuals from the model
+residuals <- residuals(model_q1_clean)
+
+# Standardize residuals
+standardized_residuals <- residuals / sd(residuals)
+
+# Create a Q-Q plot using ggplot2
+ggplot(data.frame(standardized_residuals), aes(sample = standardized_residuals)) +
+  stat_qq() +
+  stat_qq_line(color = 'red', linetype = 'dotted') +
+  labs(title = "Q-Q Plot of Standardized Residuals",
+       x = "Theoretical Quantiles",  # x-axis label
+       y = "Standardized Residuals") +  # y-axis label
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12))
+```
+
+The initial multiple linear regression model violated the linearity assumption, as indicated by the Q-Q plot in Appendix 1. To address this, the outliers and influential values were identified and removed using Cook's distance with the threshold set as $\frac{4}{n}$, where n is the total number of observations. After removing the influential points, the model was re-evaluated, and the variables were log-transformed. This iteration of the model proved to be a significant improvement from the original, as evidenced by improved diagnostics and fit.
+
+```{r, warning=FALSE, message = FALSE, echo = FALSE}
+vif_results = vif(model_q1_clean)
+# Create a data frame from the VIF results
+vif_table <- data.frame(
+  Variable = c("Reach (log transformed)", "Win Streak", "Weight Class", "Height (log transformed)", "Win Streak * Weight Class"),
+  GVIF = vif_results[, 1],  # Raw GVIF values
+  Df = vif_results[, 2],     # Degrees of freedom
+  GVIF_Adjusted = vif_results[, 1]^(1 / (2 * vif_results[, 2]))  # Adjusted GVIF^(1/(2*Df))
+)
+rownames(vif_table) <- NULL
+# Print the table in a clean format using kable
+kable(vif_table, caption = "Variance Inflation Factor (VIF) and Adjusted GVIF", align = "c", digits = 3)
+```
+
+To assess multicollinearity, we calculated the Generalized Variance Inflation Factor (GVIF) for each predictor, especially considering the inclusion of categorical variables like Weight Class and their interactions with Win Streak. The GVIF was adjusted using $GVIF^{\frac{1}{2 \cdot \text{df}}}$ to account for the degrees of freedom of categorical variables and interaction terms, ensuring a more accurate evaluation of multicollinearity. The results showed that most predictors showed acceptable GVIF values, indicating no significant multicollinearity. Although Weight Class had a high raw GVIF of 1301.45, the adjusted GVIF was 1.35, indicating low multicollinearity. Overall, the analysis confirmed that multicollinearity is not a significant concern, allowing for reliable interpretation of the predictors.
+
+#### Research Question 2: Is the fight outcome associated with the number of submission attempts made by a fighter?
+
+To explore the relationship between the number of submission attempts and the fight outcome, we first computed summary statistics for key variables: Submission Attempts, Weight Class, Reach, Significant Strikes Landed, and Fight Time. The binary fight outcome is represented as 1 for a Red win and 0 for a Blue win. Continuous variables, including submission attempts, reach, significant strikes landed, and fight time, are transformed using logarithmic transformations to account for skewness. These transformations help in better understanding the distribution and potential association with fight outcomes. Summary statistics for these variables provide the necessary foundation for further modeling.
+
+```{r warning=FALSE, message = FALSE, echo = FALSE}
+ufc_q2 <- ufc_clean %>%
+  mutate(
+    Outcome = ifelse(Winner == "Red", 1, 0),  # Binary outcome: 1 for Red win, 0 for Blue win
+    WeightClass = as.factor(WeightClass),
+    TotalRedSubAttempts = RedAvgSubAtt,        # Red's submission attempts
+    TotalBlueSubAttempts = BlueAvgSubAtt
+  ) %>%
+  mutate(
+    LogRedSubAttempts = log1p(TotalRedSubAttempts),
+    LogBlueSubAttempts = log1p(TotalBlueSubAttempts),
+    LogBlueReach = log1p(BlueReachCms),
+    LogRedReach = log1p(RedReachCms),
+    LogBlueSigStr = log1p(BlueAvgSigStrLanded),
+    LogRedSigStr = log1p(RedAvgSigStrLanded),
+    LogFightTime = log1p(TotalFightTimeSecs)
+  )
+
+# Check dimensions of the cleaned dataset
+# dim(ufc_q2)
+```
+
+```{r, echo = FALSE}
+# Summarize the data
+summary_table2 <- ufc_q2 %>%
+  group_by(WeightClass) %>%
+  summarize(
+    N = n(),
+    Avg_SubAttempts = paste0(round(mean(c(LogRedSubAttempts,LogBlueSubAttempts), na.rm = TRUE), 1), " ± ", round(sd(c(LogRedSubAttempts,LogBlueSubAttempts), na.rm = TRUE), 1)),
+    Avg_Reach = paste0(round(mean(c(LogBlueReach, LogRedReach), na.rm = TRUE), 1), " ± ", round(sd(c(LogBlueReach, LogRedReach), na.rm = TRUE), 1)),
+    Avg_SigStr = paste0(round(mean(c(LogBlueSigStr, LogRedSigStr), na.rm = TRUE), 1), " ± ", round(sd(c(LogBlueSigStr, LogRedSigStr), na.rm = TRUE), 1)),
+    Avg_FightTime = paste0(round(mean(LogFightTime, na.rm = TRUE), 1), " ± ", round(sd(LogFightTime, na.rm = TRUE), 1)))
+
+# Render the table
+kable(summary_table2, caption = "Summary Statistics by Weight Class", align = "c")
+```
+
+```{r warning=FALSE,include=FALSE}
+sim_logistic_model <- glm(
+  Outcome ~ 
+    LogRedSubAttempts + 
+    LogBlueSubAttempts + 
+    LogBlueReach + 
+    LogRedReach + 
+    LogBlueSigStr + 
+    LogRedSigStr + 
+    LogFightTime + 
+    WeightClass,
+  data = ufc_q2, 
+  family = binomial
+)
+
+summary(sim_logistic_model)
+
+ext_logistic_model <- glm(
+  Outcome ~ 
+    LogRedSubAttempts + 
+    LogBlueSubAttempts + 
+    LogBlueReach + 
+    LogRedReach + 
+    LogBlueSigStr + 
+    LogRedSigStr + 
+    LogFightTime + 
+    WeightClass + 
+    LogRedSubAttempts:LogBlueSubAttempts + 
+    LogRedSubAttempts:LogRedReach + 
+    LogBlueSubAttempts:LogBlueReach + 
+    LogRedSigStr:LogBlueSigStr,
+  data = ufc_q2, 
+  family = binomial
+)
+
+summary(ext_logistic_model)
+
+
+step_model <- step(ext_logistic_model, direction = "both")
+
+# Calculate Cook's distance and leverage
+cooks_distance <- cooks.distance(step_model)
+hat_values <- hatvalues(step_model)
+residuals <- residuals(step_model, type = "deviance")
+
+# Thresholds
+n <- nrow(ufc_q2)
+p <- length(coef(step_model)) - 1
+cooks_threshold <- 4 / n
+leverage_threshold <- 2 * (p + 1) / n
+
+# Identify influential points
+influential_points <- which(cooks_distance > cooks_threshold | 
+                            hat_values > leverage_threshold |
+                            abs(residuals) > 2)
+
+# Remove influential points
+ufc_q2_filtered <- ufc_q2[-influential_points, ]
+
+# Refit the model
+final_model <- glm(formula = Outcome ~ LogRedSubAttempts + LogBlueSubAttempts + 
+    LogBlueReach + LogRedReach + LogBlueSigStr + LogRedSigStr, 
+    family = binomial, data = ufc_q2_filtered)
+
+
+# Model summary
+summary(final_model)
+# 
+# par(mfrow=c(2,2), mar = c(2,2,2,2))
+# 
+# plot(final_model)
+```
+
+We investigated the relationship between submission attempts and fight outcomes using a logistic regression model. The model included both submission attempts (log-transformed for both red and blue fighters), reach, significant strikes, and fight time as predictors of the binary outcome: win (1 for red win, 0 for blue win). We also assessed the potential impact of weight class on the outcome, although it was not a significant predictor in the final model. Throughout the whole modelling process, AIC (Akaike Information Criterion) was used as the metric to confirm model improvement and ensure optimal fit. We began with the creation of a general logistic regression model with multiple variables (AIC: 6606.3), followed by an extended model that incorporated interaction terms to explore potential relationships between predictors (AIC: 6612.1). Stepwise variable selection was performed to yield the best model, using both forward and backward selection techniques (AIC: 6591.77). Finally, influential points were identified and removed to refine the final model, ensuring the results were not skewed by outliers or leverage points (AIC: 6235.7).
+
+```{r, echo = FALSE, warning=FALSE, message = FALSE}
+# Generate a tidy dataframe of the model summary
+model_summary <- tidy(final_model)
+
+model_summary$term <- c("Intercept",
+  "Log Red Submission Attempts", 
+  "Log Blue Submission Attempts", 
+  "Log Blue Reach", 
+  "Log Red Reach", 
+  "Log Blue Significant Strikes", 
+  "Log Red Significant Strikes"
+)
+# Update the p-value column to format values less than 0.001
+model_summary <- model_summary %>%
+  mutate(p.value = ifelse(p.value < 0.001, "<0.001", round(p.value, 3)))
+# Print the table in a clean format
+kable(model_summary, caption = "Final Logistic Regression Model Summary", format = "pipe", digits = 3)
+
+```
+
+```{r warning=FALSE, message = FALSE, echo = FALSE}
+vif_results = vif(final_model)
+# Try extracting VIF
+if (length(vif_results) == 0) {
+  stop("The VIF computation returned an empty result. Check your model for singularities or errors.")
+} else if (is.matrix(vif_results)) {
+  # Handle VIF as a matrix (for categorical predictors)
+  vif_table <- data.frame(
+    Variable = rownames(vif_results),
+    GVIF = vif_results[, 1],
+    Df = vif_results[, 2],
+    GVIF_Adjusted = vif_results[, 1]^(1 / (2 * vif_results[, 2]))
+  )
+} else {
+  # Handle VIF as a vector (for numeric-only models)
+  vif_table <- data.frame(
+    Variable = names(vif_results),
+    VIF = vif_results
+  )
+}
+
+# Add descriptive names (optional)
+vif_table$Variable <- c(
+  "Log Red Submission Attempts", 
+  "Log Blue Submission Attempts", 
+  "Log Blue Reach", 
+  "Log Red Reach", 
+  "Log Blue Significant Strikes", 
+  "Log Red Significant Strikes"
+)
+
+# Remove row names
+rownames(vif_table) <- NULL
+
+kable(
+  vif_table, 
+  caption = "Variance Inflation Factor (VIF) and Adjusted GVIF", 
+  align = "c", 
+  digits = 3
+)
+```
+
+To assess multicollinearity, we calculated the Variance Inflation Factor (VIF)for each predictor. The results showed that all the predictors fall under the accepted VIF value-threshold, indicating no significant multicollinearity.
+
+The final model provided the following odds ratios (OR) and confidence intervals (CI) for each predictor:
+
+```{r, echo = FALSE, warning=FALSE, message = FALSE}
+# Extract coefficients (log-odds) from the model
+coefficients <- summary(final_model)$coefficients
+
+# Calculate Odds Ratios (OR) and 95% Confidence Intervals (CI)
+odds_ratios <- exp(coefficients[, "Estimate"])
+conf_int <- exp(confint(final_model))
+
+# Clean up column names to remove unwanted characters
+colnames(conf_int) <- c("2.5% CI", "97.5% CI")  # Renaming the columns properly
+
+# Create the Odds Ratio table
+odds_ratio_table <- data.frame(
+  Predictor = c("Intercept", "Red Submission Attempts", "Blue Submission Attempts", "Blue Reach", 
+                "Red Reach", "Blue Significant Strikes", "Red Significant Strikes"),
+  Odds_Ratio = round(odds_ratios, 3),
+  `2.5% CI` = round(conf_int[, 1], 3),  # Lower bound of CI
+  `97.5% CI` = round(conf_int[, 2], 3),  # Upper bound of CI
+  P_Value = round(coefficients[, "Pr(>|z|)"], 3)
+)
+
+# Modify P-Value column to show <0.001 where applicable
+odds_ratio_table$P_Value <- ifelse(odds_ratio_table$P_Value < 0.001, "<0.001", odds_ratio_table$P_Value)
+
+# Rename columns if needed (for clarity)
+colnames(odds_ratio_table) <- c("Predictor", "Odds Ratio (OR)", "2.5% CI", "97.5% CI", "P-Value")
+
+# Print the table using kable
+kable(odds_ratio_table, 
+      caption = "Odds Ratios and 95% Confidence Intervals for Logistic Regression Model", 
+      align = "c", digits = 3, row.names= FALSE)
+```
+
+The logistic regression model reveals some important findings regarding the factors that influence the outcome of a UFC fight. The odds ratio for Red Submission Attempts (OR = 1.548, p \< 0.001) suggests that each additional submission attempt by the red fighter increases the odds of them winning by 54.8%. This indicates that red fighter submission attempts positively influence their likelihood of victory. Conversely, Blue Submission Attempts (OR = 0.709, p \< 0.001) show a negative relationship with the outcome, where each additional submission attempt by the blue fighter decreases the odds of blue winning by 29.1%. This suggests that higher submission attempts by the blue fighter may be linked to a decreased likelihood of blue winning, which may indicate that submission attempts do not effectively contribute to blue’s success in this context.
+
+For Blue Reach (OR = 0.121, p = 0.006), an increase in blue’s reach reduces the odds of red winning. The odds ratio of 0.121 indicates that each unit increase in blue’s reach significantly lowers the likelihood of red winning, highlighting the importance of reach for blue fighters. In contrast, Red Reach (OR = 7.623, p = 0.0063) increases the odds of red winning by a factor of 7.623 for every unit increase in red’s reach, emphasizing the critical role of reach for red fighters in enhancing their chances of victory.
+
+Regarding significant strikes, LogBlueSigStr (OR = 0.624, p \< 0.001) shows that for blue fighters, a higher number of significant strikes landed decreases the odds of red winning. This suggests that effective striking by the blue fighter contributes to their chance of winning by reducing red’s odds. Similarly, LogRedSigStr (OR = 1.588, p \< 0.001) indicates that for red fighters, a higher number of significant strikes landed increases the odds of red winning by 58.8%, reinforcing the importance of striking in determining the fight outcome.
+
+Overall, these findings provide insights into the key factors that influence the fight’s outcome, with submission attempts, reach, and significant strikes being significant contributors to the likelihood of winning.
+
+```{r message = FALSE, warning = FALSE, echo = FALSE, fig.width=6, fig.height=4}
+# Convert both Red and Blue Submission Attempts back to the original scale
+ufc_q2_filtered$actual_LogRedSubAttempts <- exp(ufc_q2_filtered$LogRedSubAttempts) - 1
+ufc_q2_filtered$actual_LogBlueSubAttempts <- exp(ufc_q2_filtered$LogBlueSubAttempts) - 1
+ufc_q2_filtered$predicted_prob <- predict(final_model, newdata = ufc_q2_filtered, type = "response")
+# Plot both Red and Blue Submission Attempts against the predicted probabilities
+ggplot(ufc_q2_filtered, aes(x = actual_LogRedSubAttempts, y = predicted_prob)) +
+    geom_point(aes(color = "Red Submission Attempts"), alpha = 0.1, size = 2) +  # Reduce opacity of red dots
+  geom_smooth(aes(color = "Red Submission Attempts"), method = "loess", size = 1.5) +  # Thicker line for red
+  geom_point(aes(x = actual_LogBlueSubAttempts, color = "Blue Submission Attempts"), alpha = 0.1, size = 2) +  # Reduce opacity of blue dots
+  geom_smooth(aes(x = actual_LogBlueSubAttempts, color = "Blue Submission Attempts"), method = "loess", size = 1.5) +  # Thicker line for blue
+  labs(
+    title = "Predicted Probability of Red Winning vs. Submission Attempts",
+    x = "Submission Attempts",
+    y = "Predicted Probability of Red Winning",
+    color = "Predictor"
+  ) +
+  scale_color_manual(
+    values = c("Red Submission Attempts" = "red", "Blue Submission Attempts" = "blue")
+  ) +  # Adjusted colors for contrast
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 10),  # Center-align title and increase font size
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 9),
+    legend.position = "bottom",  # Move legend to the bottom
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9)
+  )
+```
+
+This plot visualizes the relationship between submission attempts and the predicted probability of the red fighter winning in a UFC fight, with a focus on both the red and blue fighters’ submission attempts. Each point represents an observation, while the red and blue lines represent logistic regression trends for Red Submission Attempts and Blue Submission Attempts, respectively.
+
+The upward trend of the red line suggests that as the number of submission attempts by the red fighter increases, the predicted probability of the red fighter winning also increases. This aligns with the odds ratio of 1.548, indicating that each additional submission attempt by the red fighter significantly improves their chances of victory.
+
+Conversely, the downward slope of the blue line reveals a negative relationship for blue fighter submission attempts. As the number of submission attempts by the blue fighter increases, the predicted probability of the red fighter winning also increases, suggesting that blue's submission attempts are ineffective or even counterproductive in this context. This trend supports the odds ratio of 0.709, showing that additional submission attempts decrease the odds of the blue fighter winning.
+
+To summarize, this plot highlights a contrasting effect: while submission attempts by the red fighter are positively associated with victory, submission attempts by the blue fighter appear to have the opposite effect. This difference may reflect strategic or performance disparities between the fighters, influencing their likelihood of success.
+
+## Appendix: Supplementary Materials for UFC Analysis
+
+**Appendix 1: Diagnostic Plots for Initial Model (Research Question 1)**
+
+The following diagnostic plots were generated for the initial multiple linear regression (MLR) model used to explore the relationship between reach and strikes landed in Research Question 1. These plots highlight key assumptions of linear regression, including linearity, normality of residuals, and homoscedasticity.
+
+```{r, warning=FALSE, message = FALSE, echo = FALSE}
+# Extract residuals from the model
+residuals <- residuals(model_q1)
+
+# Standardize residuals
+standardized_residuals <- residuals / sd(residuals)
+
+# Create a Q-Q plot using ggplot2
+ggplot(data.frame(standardized_residuals), aes(sample = standardized_residuals)) +
+  stat_qq() +
+  stat_qq_line(color = 'red', linetype = 'dotted') +
+  labs(title = "Figure A1.1: Q-Q Plot for the Initial Model for Research Question 1",
+       x = "Theoretical Quantiles",  # x-axis label
+       y = "Standardized Residuals") +  # y-axis label
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12))
+```
+
+**Appendix 2: Model summaries with AIC score progression (Research Question 2)**
+
+This section presents the progression of the model selection process for Research Question 2, examining the relationship between submission attempts, reach, significant strikes, and fight outcomes. The table includes the Akaike Information Criterion (AIC) values for different iterations of the logistic regression model during stepwise selection. The AIC score, which balances model fit and complexity, is used to determine the optimal combination of predictors for the final model. Lower AIC scores indicate a better-fitting model.
+
+The progression shows how variables were added or removed during the stepwise selection process, highlighting the impact of each predictor on model performance.
+
+```{r warning=FALSE, message = FALSE, echo = FALSE}
+# Model summary of the initial simple logistic model
+
+
+par(mfrow=c(2,2), mar = c(2,2,2,2))
+
+plot(sim_logistic_model)
+
+# Rename the predictors in the coefficients table using case_when
+coefficients_table_sim <- tidy(sim_logistic_model) %>%
+  mutate(
+    Predictor = case_when(
+      term == "(Intercept)" ~ "Intercept",
+      term == "LogRedSubAttempts" ~ "Log Red Submission Attempts",
+      term == "LogBlueSubAttempts" ~ "Log Blue Submission Attempts",
+      term == "LogBlueReach" ~ "Log Blue Reach",
+      term == "LogRedReach" ~ "Log Red Reach",
+      term == "LogBlueSigStr" ~ "Log Blue Significant Strikes",
+      term == "LogRedSigStr" ~ "Log Red Significant Strikes",
+      term == "LogFightTime" ~ "Log Fight Time",
+      TRUE ~ term  # Preserve any terms not explicitly renamed
+    ),
+    p.value = ifelse(p.value < 0.001, "<0.001", round(p.value, 3))  # Format p-values
+  ) %>%
+  select(Predictor, estimate, std.error, statistic, p.value)  # Reorder columns
+
+# Rename columns for presentation
+coefficients_table_sim <- coefficients_table_sim %>%
+  rename(
+    Estimate = estimate,
+    `Std. Error` = std.error,
+    `Z Value` = statistic,
+    `P Value` = p.value
+  )
+
+model_fit_table_sim <- glance(sim_logistic_model) %>%
+  select(null.deviance, df.null, deviance, df.residual, AIC) %>%
+  rename(
+    `Null Deviance` = null.deviance,
+    `DF Null` = df.null,
+    `Residual Deviance` = deviance,
+    `DF Residual` = df.residual
+  )
+
+# Print coefficients fit statistics table
+kable(coefficients_table_sim, caption = "Logistic Regression Model Coefficients - Simple Logistic Model", format = "pipe", digits = 3) %>%
+  kable_styling(full_width = FALSE)
+
+# Print model fit statistics table
+kable(model_fit_table_sim, caption = "Model Fit Statistics - Simple Logistic Model", format = "pipe", digits = 3) %>%
+  kable_styling(full_width = FALSE)
+
+
+# Rename the predictors in the coefficients table using case_when
+coefficients_table_step <- tidy(step_model) %>%
+  mutate(
+    Predictor = case_when(
+      term == "(Intercept)" ~ "Intercept",
+      term == "LogRedSubAttempts" ~ "Log Red Submission Attempts",
+      term == "LogBlueSubAttempts" ~ "Log Blue Submission Attempts",
+      term == "LogBlueReach" ~ "Log Blue Reach",
+      term == "LogRedReach" ~ "Log Red Reach",
+      term == "LogBlueSigStr" ~ "Log Blue Significant Strikes",
+      term == "LogRedSigStr" ~ "Log Red Significant Strikes",
+      TRUE ~ term  # Preserve any terms not explicitly renamed
+    ),
+    p.value = ifelse(p.value < 0.001, "<0.001", round(p.value, 3))  # Format p-values
+  ) %>%
+  select(Predictor, estimate, std.error, statistic, p.value)  # Reorder columns
+
+
+model_fit_table_step <- glance(step_model) %>%
+  select(null.deviance, df.null, deviance, df.residual, AIC) %>%
+  rename(
+    `Null Deviance` = null.deviance,
+    `DF Null` = df.null,
+    `Residual Deviance` = deviance,
+    `DF Residual` = df.residual
+  )
+
+# Print coefficients fit statistics table
+kable(coefficients_table_step, caption = "Logistic Regression Model Coefficients - Step Model", format = "pipe", digits = 3) %>%
+  kable_styling(full_width = FALSE)
+
+# Print model fit statistics table
+kable(model_fit_table_step, caption = "Model Fit Statistics - Step Model", format = "pipe", digits = 3) %>%
+  kable_styling(full_width = FALSE)
+
+
+
+par(mfrow=c(2,2), mar = c(2,2,2,2))
+
+plot(step_model)
+```
